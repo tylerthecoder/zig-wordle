@@ -1,6 +1,22 @@
 const std = @import("std");
 const wordfile = "./words.txt";
 
+fn print_with_marks(stdout: anytype, marks: [5]u8, word: []u8) !void {
+    const black_text = "\x1b[30m";
+    const green_bg = "\x1b[42m";
+    const reset = "\x1b[0m";
+    for (0..5) |i| {
+        const word_char = word[i];
+        const mark = marks[i];
+        if (mark == 1) {
+            try stdout.print("{s}{s}{u}{s}", .{ black_text, green_bg, word_char, reset });
+        } else {
+            try stdout.print("{u}", .{word_char});
+        }
+    }
+    try stdout.print("\n", .{});
+}
+
 pub fn main() !void {
     const file = try std.fs.cwd().openFile(wordfile, .{});
     defer file.close();
@@ -17,8 +33,6 @@ pub fn main() !void {
 
     _ = try file.readAll(buffer);
 
-    std.debug.print("Hello World, {s} \n", .{buffer});
-
     // pick a random element from the buffer.
     var prng = std.rand.DefaultPrng.init(4173998);
     const rng = prng.random();
@@ -34,13 +48,9 @@ pub fn main() !void {
 
     const word_loc = random_index * 6;
 
-    const word = buffer[word_loc .. word_loc + 6];
+    const word = buffer[word_loc .. word_loc + 5];
 
-    std.debug.print("Random index: {d}\n", .{random_index});
-    std.debug.print("Random word: {s}", .{word});
-
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    // now I need to display the word to the screen with green and blue characters
 
     // stdout is for the actual output of your application, for example if you
     // are implementing gzip, then only the compressed bytes should be sent to
@@ -48,17 +58,54 @@ pub fn main() !void {
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
 
-    var input: [7]u8 = undefined;
+    // Clear the entire screen
+    try stdout.writeAll("\x1b[2J");
 
+    // Move the cursor to the top-left corner (home position)
+    try stdout.writeAll("\x1b[H");
+
+    const marks = [5]u8{ 0, 0, 1, 0, 0 };
+
+    try print_with_marks(stdout, marks, word);
+
+    try bw.flush(); // don't forget to flush!
+
+    var input: [6]u8 = undefined;
     const stdin = std.io.getStdIn().reader();
 
     _ = try stdin.readUntilDelimiter(&input, '\n');
 
-    try stdout.print("Hello {s}\n", .{input});
+    var new_marks = [5]u8{ 0, 0, 0, 0, 0 };
+    for (0..5) |j| {
+        const guess_letter = input[j];
+        var right_letter = false;
+        var right_place = false;
+        for (0..5) |k| {
+            const target_letter = word[k];
+            if (target_letter == guess_letter) {
+                right_letter = true;
+                if (j == k) {
+                    right_place = true;
+                }
+            }
+        }
 
-    try bw.flush(); // don't forget to flush!
+        if (right_place) {
+            new_marks[j] = 2;
+        } else if (right_letter) {
+            new_marks[j] = 1;
+        }
+    }
+
+    // move up a line
+    try stdout.writeAll("\x1b[1A");
+
+    try stdout.writeAll("\r");
+
+    try print_with_marks(stdout, new_marks, &input);
+
+    try bw.flush();
 }
 
 test "simple test" {
