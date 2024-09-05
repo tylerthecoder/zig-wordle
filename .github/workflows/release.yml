@@ -26,6 +26,9 @@ jobs:
 
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2.2.0
+        with:
+            version: 0.13.0
+
       - run: zig build test
       - run: zig build
       - name: Upload files to a GitHub release
