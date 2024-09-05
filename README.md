@@ -1,4 +1,4 @@
-# Zigle
+# Ziggle
 
 My first zig project. Play wordle in your terminal.
 
