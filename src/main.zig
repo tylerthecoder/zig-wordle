@@ -1,6 +1,78 @@
 const std = @import("std");
 
-const words = @embedFile("./words.txt");
+const WordKey = struct { []const u8 };
+
+const word_array = @embedFile("./words.txt");
+
+fn count_words() u32 {
+    @setEvalBranchQuota(6000 * 6);
+    return std.mem.count(u8, word_array, "\n");
+}
+
+const num_of_words = count_words();
+
+fn hash_words() std.StaticStringMap(void) {
+    var kv_list: [num_of_words]WordKey = undefined;
+
+    @setEvalBranchQuota(3000 * 6);
+    var it = std.mem.split(u8, word_array, "\n");
+
+    var i = 0;
+    while (it.next()) |line| {
+        if (line.len != 5) {
+            // std.debug.print("Invalid word", .{});
+            continue;
+        }
+
+        // var word: [5]u8 = undefined;
+
+        // @memcpy(&word, line[0..5]);
+
+        kv_list[i] = .{line};
+        i += 1;
+    }
+
+    const word_hash = std.StaticStringMap(void).initComptime(kv_list);
+
+    return word_hash;
+
+    // var current_word = [5]u8{ 0, 0, 0, 0, 0 };
+
+    // var letter_index = 0;
+
+    // for (word_array) |char| {
+    //     if (letter_index == 6) {
+    //         letter_index = 0;
+    //         kv_list = kv_list ++ current_word;
+    //     }
+    //     current_word[letter_index] = char;
+
+    //     letter_index += 1;
+    // }
+
+    // const word_hash = std.StaticStringMap(void).initComptime(kv_list);
+
+    // return word_hash;
+}
+
+const words_hash = hash_words();
+
+fn has_word(word: [5]u8) bool {
+    const slice: []const u8 = &word;
+    return words_hash.has(slice);
+}
+
+// Build a hashmap at comptime
+// comptime {
+
+//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     const allocator = gpa.allocator();
+
+//     var hashmap = std.AutoHashMap([5]u8, void);
+
+//     for
+
+// }
 
 const black_text = "\x1b[30m";
 const green_bg = "\x1b[42m";
@@ -121,10 +193,21 @@ pub fn get_input(board: std.ArrayList(Guess)) ![5]u8 {
             try stdout_file.writeAll("Invalid Input. Please enter 5 letters");
             try stdin.skipUntilDelimiterOrEof('\n');
             try print_board(board);
-        } else {
-            try stdin.skipUntilDelimiterOrEof('\n');
-            return parsed_input;
+            continue;
         }
+
+        const is_in_list = has_word(parsed_input);
+
+        if (!is_in_list) {
+            try stdin.skipUntilDelimiterOrEof('\n');
+            try stdout_file.writeAll("Invalid Input. Word not in word list");
+            try stdin.skipUntilDelimiterOrEof('\n');
+            try print_board(board);
+            continue;
+        }
+
+        try stdin.skipUntilDelimiterOrEof('\n');
+        return parsed_input;
     }
 }
 
@@ -157,16 +240,9 @@ fn get_random_word() ![5]u8 {
     // var prng = std.rand.DefaultPrng.init(124738927498);
     const rng = prng.random();
 
-    var word_count: u32 = 0;
-    for (words) |char| {
-        if (char == '\n') {
-            word_count += 1;
-        }
-    }
-
-    const random_index = rng.intRangeAtMost(u32, 0, word_count - 1);
+    const random_index = rng.intRangeAtMost(u32, 0, num_of_words - 1);
     const word_loc = random_index * 6;
-    const word = words[word_loc .. word_loc + 5];
+    const word = word_array[word_loc .. word_loc + 5];
     const word_copied: [5]u8 = word[0..5].*;
 
     std.debug.print("The word: {s}", .{word_copied});
